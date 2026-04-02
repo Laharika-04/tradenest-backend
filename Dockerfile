@@ -7,6 +7,6 @@ COPY . .
 RUN chmod +x mvnw
 RUN ./mvnw clean package -DskipTests
 
-EXPOSE 8080
+EXPOSE 9000
 
-CMD ["java", "-jar", "target/tradenest-api-1.0.0.jar"]
+CMD ["sh", "-c", "java -Dserver.port=$PORT -jar target/tradenest-api-1.0.0.jar"]
