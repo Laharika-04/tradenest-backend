@@ -1,0 +1,3397 @@
+package com.tradenest.api;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class TradenestApiApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(TradenestApiApplication.class, args);
+	}
+
+}
+package com.tradenest.api.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.*;
+
+import java.nio.file.Path;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    @Value("${app.upload.dir}")
+    private String uploadDir;
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+
+        String absolutePath = Path.of(uploadDir)
+                .toAbsolutePath()
+                .normalize()
+                .toString();
+
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:" + absolutePath + "/");
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.*;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.AuthService;
+import com.tradenest.api.util.ApiResponse;
+import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final AuthService service;
+
+    public AuthController(AuthService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/register")
+    public ApiResponse<AuthResponse> register(@Valid @RequestBody RegisterRequest req) {
+        return ApiResponse.ok(service.register(req));
+    }
+
+    @PostMapping("/login")
+    public ApiResponse<AuthResponse> login(@RequestBody LoginRequest req) {
+        return ApiResponse.ok(service.login(req));
+    }
+
+    @GetMapping("/profile")
+    public ApiResponse<UserDto> profile(@AuthenticationPrincipal User user) {
+        return ApiResponse.ok(service.getProfile(user.getId()));
+    }
+
+    // ── NEW: update logged-in user's profile ─────────────────────────────────
+    @PutMapping("/profile")
+    public ApiResponse<UserDto> updateProfile(
+            @AuthenticationPrincipal User user,
+            @RequestBody UpdateProfileRequest req) {
+        return ApiResponse.ok(service.updateProfile(user.getId(), req));
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.entity.Category;
+import com.tradenest.api.service.CategoryService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/categories")
+public class CategoryController {
+
+    private final CategoryService service;
+
+    public CategoryController(CategoryService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public ApiResponse<List<Category>> getAll() {
+        return ApiResponse.ok(service.getAll());
+    }
+
+    @GetMapping("/{slug}")
+    public ApiResponse<Category> getBySlug(@PathVariable String slug) {
+        return ApiResponse.ok(service.getBySlug(slug));
+    }
+
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.entity.City;
+import com.tradenest.api.service.CityService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/cities")
+public class CityController {
+
+    private final CityService service;
+
+    public CityController(CityService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public ApiResponse<List<City>> getAll() {
+        return ApiResponse.ok(service.getAll());
+    }
+
+    @GetMapping("/state/{state}")
+    public ApiResponse<List<City>> getByState(@PathVariable String state) {
+        return ApiResponse.ok(service.getByState(state));
+    }
+
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.DashboardDto;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.DashboardService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/dashboard")
+public class DashboardController {
+
+    private final DashboardService service;
+
+    public DashboardController(DashboardService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public ApiResponse<DashboardDto> dashboard(
+            @AuthenticationPrincipal User user) {
+
+        return ApiResponse.ok(
+                service.getSellerDashboard(user.getId())
+        );
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.service.FileService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/files")
+public class FileController {
+
+    private final FileService fileService;
+
+    public FileController(FileService fileService) {
+        this.fileService = fileService;
+    }
+
+    @PostMapping("/upload")
+    public ApiResponse<Object> upload(@RequestParam("file") MultipartFile file) {
+
+        try {
+
+            String filename = fileService.upload(file);
+
+            return ApiResponse.ok(
+                    "/uploads/" + filename,
+                    "File uploaded"
+            );
+
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.*;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.MessageService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/messages")
+public class MessageController {
+
+    private final MessageService service;
+
+    public MessageController(MessageService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/conversations")
+    public ApiResponse<List<ConversationDto>> getConversations(
+            @AuthenticationPrincipal User user) {
+        return ApiResponse.ok(service.getUserConversations(user.getId()));
+    }
+
+    @GetMapping("/conversations/{id}")
+    public ApiResponse<List<MessageDto>> getMessages(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user) {
+        return ApiResponse.ok(service.getMessages(id, user.getId()));
+    }
+
+    @PostMapping("/conversations")
+    public ApiResponse<ConversationDto> startConversation(
+            @AuthenticationPrincipal User user,
+            @RequestBody StartConversationRequest req) {
+
+        return ApiResponse.ok(
+                service.startConversation(
+                        user.getId(),
+                        req.getProductId(),
+                        req.getSellerId(),
+                        req.getMessage()
+                )
+        );
+    }
+
+    @PostMapping("/conversations/{id}")
+    public ApiResponse<MessageDto> sendMessage(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id,
+            @RequestBody SendMessageRequest req) {
+
+        return ApiResponse.ok(
+                service.sendMessage(id, user.getId(), req.getContent())
+        );
+    }
+
+    @PutMapping("/conversations/{id}/read")
+    public ApiResponse<Object> markRead(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
+
+        service.markAsRead(id, user.getId());
+        return ApiResponse.ok(null, "Marked as read");
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.NotificationDto;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.NotificationService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/notifications")
+public class NotificationController {
+
+    private final NotificationService service;
+
+    public NotificationController(NotificationService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public ApiResponse<List<NotificationDto>> getAll(@AuthenticationPrincipal User user) {
+        return ApiResponse.ok(service.getForUser(user.getId()));
+    }
+
+    @GetMapping("/unread-count")
+    public ApiResponse<Map<String, Integer>> unreadCount(@AuthenticationPrincipal User user) {
+        return ApiResponse.ok(Map.of("count", service.getUnreadCount(user.getId())));
+    }
+
+    @PutMapping("/mark-all-read")
+    public ApiResponse<Object> markAllRead(@AuthenticationPrincipal User user) {
+        service.markAllRead(user.getId());
+        return ApiResponse.ok(null, "All marked as read");
+    }
+
+    @PutMapping("/{id}/read")
+    public ApiResponse<Object> markOneRead(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
+        service.markOneRead(id, user.getId());
+        return ApiResponse.ok(null, "Marked as read");
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.*;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.OfferService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/offers")
+public class OfferController {
+
+    private final OfferService service;
+
+    public OfferController(OfferService service) {
+        this.service = service;
+    }
+
+    @PostMapping
+    public ApiResponse<OfferDto> makeOffer(
+            @AuthenticationPrincipal User user,
+            @RequestBody MakeOfferRequest req) {
+
+        return ApiResponse.ok(
+                service.makeOffer(user, req.getProductId(), req.getAmount(), req.getMessage())
+        );
+    }
+
+    @GetMapping("/mine")
+    public ApiResponse<List<OfferDto>> myOffers(
+            @AuthenticationPrincipal User user) {
+
+        return ApiResponse.ok(service.getMyOffers(user.getId()));
+    }
+
+    @GetMapping("/received")
+    public ApiResponse<List<OfferDto>> received(
+            @AuthenticationPrincipal User user) {
+
+        return ApiResponse.ok(service.getReceivedOffers(user.getId()));
+    }
+
+    @PutMapping("/{id}/accept")
+    public ApiResponse<OfferDto> accept(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
+
+        return ApiResponse.ok(service.accept(id, user.getId()));
+    }
+
+    @PutMapping("/{id}/reject")
+    public ApiResponse<OfferDto> reject(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
+
+        return ApiResponse.ok(service.reject(id, user.getId()));
+    }
+
+    @PutMapping("/{id}/counter")
+    public ApiResponse<OfferDto> counter(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id,
+            @RequestBody CounterOfferRequest req) {
+
+        return ApiResponse.ok(service.counter(id, user.getId(), req.getAmount()));
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.CreateProductRequest;
+import com.tradenest.api.dto.PagedResponse;
+import com.tradenest.api.dto.ProductDto;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.ProductService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/products")
+public class ProductController {
+
+    private final ProductService service;
+
+    public ProductController(ProductService service) {
+        this.service = service;
+    }
+
+    // ── Public list (legacy, un-paginated) ────────────────────────────────────
+    @GetMapping
+    public ApiResponse<List<ProductDto>> all() {
+        return ApiResponse.ok(service.getAll());
+    }
+
+    // ── Paginated product list ────────────────────────────────────────────────
+    @GetMapping("/paged")
+    public ApiResponse<PagedResponse<ProductDto>> allPaged(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(service.getAllPaged(page, size));
+    }
+
+    // ── Backend search ────────────────────────────────────────────────────────
+    @GetMapping("/search")
+    public ApiResponse<PagedResponse<ProductDto>> search(
+            @RequestParam(required = false)    String     q,
+            @RequestParam(required = false)    String     city,
+            @RequestParam(required = false)    String     category,
+            @RequestParam(required = false)    BigDecimal minPrice,
+            @RequestParam(required = false)    BigDecimal maxPrice,
+            @RequestParam(defaultValue = "0")  int        page,
+            @RequestParam(defaultValue = "20") int        size) {
+
+        return ApiResponse.ok(
+                service.search(q, city, category, minPrice, maxPrice, page, size)
+        );
+    }
+
+    // ── Products by category (paginated) ─────────────────────────────────────
+    // NOTE: /featured and /my must stay ABOVE /{id} so Spring doesn't treat them as Long
+    @GetMapping("/category/{slug}")
+    public ApiResponse<PagedResponse<ProductDto>> byCategory(
+            @PathVariable                      String slug,
+            @RequestParam(defaultValue = "0")  int    page,
+            @RequestParam(defaultValue = "20") int    size) {
+        return ApiResponse.ok(service.getByCategory(slug, page, size));
+    }
+
+    @GetMapping("/featured")
+    public ApiResponse<List<ProductDto>> featured() {
+        return ApiResponse.ok(service.getFeaturedProducts());
+    }
+
+    @GetMapping("/my")
+    public ApiResponse<List<ProductDto>> myProducts(@AuthenticationPrincipal User user) {
+        if (user == null) throw new RuntimeException("Unauthorized");
+        return ApiResponse.ok(service.getBySeller(user.getId()));
+    }
+
+    @GetMapping("/seller/{userId}")
+    public ApiResponse<List<ProductDto>> bySeller(@PathVariable Long userId) {
+        return ApiResponse.ok(service.getBySeller(userId));
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<ProductDto> one(@PathVariable Long id) {
+        return ApiResponse.ok(service.getById(id));
+    }
+
+    // FIX: Accept DTO instead of raw entity — prevents client from injecting
+    //      sellerId, status, viewCount, postedDate, etc.
+    @PostMapping
+    public ApiResponse<ProductDto> create(
+            @AuthenticationPrincipal User user,
+            @RequestBody CreateProductRequest req) {
+
+        if (user == null) throw new RuntimeException("Unauthorized");
+        return ApiResponse.ok(service.create(req, user));
+    }
+
+    // FIX: Same fix for update
+    @PutMapping("/{id}")
+    public ApiResponse<ProductDto> update(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id,
+            @RequestBody CreateProductRequest req) {
+
+        if (user == null) throw new RuntimeException("Unauthorized");
+        return ApiResponse.ok(service.update(id, user.getId(), req));
+    }
+
+    @PutMapping("/{id}/sold")
+    public ApiResponse<ProductDto> markAsSold(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
+
+        if (user == null) throw new RuntimeException("Unauthorized");
+        return ApiResponse.ok(service.markAsSold(id, user.getId()));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Object> delete(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long id) {
+
+        if (user == null) throw new RuntimeException("Unauthorized");
+        service.delete(id, user.getId());
+        return ApiResponse.ok(null, "Deleted");
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.*;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.ReviewService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/reviews")
+public class ReviewController {
+
+    private final ReviewService service;
+
+    public ReviewController(ReviewService service) {
+        this.service = service;
+    }
+
+    @GetMapping("/{sellerId}")
+    public ApiResponse<List<ReviewDto>> getSellerReviews(
+            @PathVariable Long sellerId) {
+        return ApiResponse.ok(service.getSellerReviews(sellerId));
+    }
+
+    @PostMapping
+    public ApiResponse<ReviewDto> createReview(
+            @AuthenticationPrincipal User user,
+            @RequestBody CreateReviewRequest req) {
+
+        return ApiResponse.ok(
+                service.createReview(user,
+                        req.getSellerId(),
+                        req.getRating(),
+                        req.getComment())
+        );
+    }
+
+    @GetMapping("/{sellerId}/stats")
+    public ApiResponse<ReviewStatsDto> stats(
+            @PathVariable Long sellerId) {
+
+        return ApiResponse.ok(service.getSellerStats(sellerId));
+    }
+}package com.tradenest.api.controller;
+
+import com.tradenest.api.dto.WishlistDto;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.service.WishlistService;
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/wishlist")
+public class WishlistController {
+
+    private final WishlistService service;
+
+    public WishlistController(WishlistService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public ApiResponse<List<WishlistDto>> getWishlist(
+            @AuthenticationPrincipal User user) {
+
+        return ApiResponse.ok(service.getWishlist(user.getId()));
+    }
+
+    @PostMapping("/{productId}")
+    public ApiResponse<Object> add(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long productId) {
+
+        service.addToWishlist(user.getId(), productId);
+        return ApiResponse.ok(null, "Added to wishlist");
+    }
+
+    @DeleteMapping("/{productId}")
+    public ApiResponse<Object> remove(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long productId) {
+
+        service.removeFromWishlist(user.getId(), productId);
+        return ApiResponse.ok(null, "Removed");
+    }
+
+    @GetMapping("/check/{productId}")
+    public ApiResponse<Boolean> check(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long productId) {
+
+        return ApiResponse.ok(service.isWishlisted(user.getId(), productId));
+    }
+}package com.tradenest.api.dto;
+
+public class AuthResponse {
+
+    private String token;
+    private UserDto user;
+
+    public AuthResponse(String token, UserDto user) {
+        this.token = token;
+        this.user = user;
+    }
+
+    public String getToken() { return token; }
+    public UserDto getUser() { return user; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.Conversation;
+
+public class ConversationDto {
+
+    private Long   id;
+    private Long   productId;
+    private String productTitle;   // NEW
+    private Long   buyerId;
+    private String buyerName;      // NEW
+    private Long   sellerId;
+    private String sellerName;     // NEW
+    private String lastMessage;
+
+    public static ConversationDto fromEntity(Conversation c) {
+        ConversationDto d = new ConversationDto();
+        d.id           = c.getId();
+        d.productId    = c.getProduct().getId();
+        d.productTitle = c.getProduct().getTitle();   // NEW
+        d.buyerId      = c.getBuyer().getId();
+        d.buyerName    = c.getBuyer().getName();      // NEW
+        d.sellerId     = c.getSeller().getId();
+        d.sellerName   = c.getSeller().getName();     // NEW
+        d.lastMessage  = c.getLastMessage();
+        return d;
+    }
+
+    public Long   getId()           { return id; }
+    public Long   getProductId()    { return productId; }
+    public String getProductTitle() { return productTitle; }
+    public Long   getBuyerId()      { return buyerId; }
+    public String getBuyerName()    { return buyerName; }
+    public Long   getSellerId()     { return sellerId; }
+    public String getSellerName()   { return sellerName; }
+    public String getLastMessage()  { return lastMessage; }
+}package com.tradenest.api.dto;
+
+import java.math.BigDecimal;
+
+public class CounterOfferRequest {
+
+    private BigDecimal amount;
+
+    public BigDecimal getAmount() { return amount; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.enums.ProductCondition;
+
+import java.math.BigDecimal;
+
+/**
+ * FIX: ProductController was accepting a raw Product entity which exposes internal
+ * fields (id, seller, status, viewCount, postedDate) to client manipulation.
+ * Use this DTO instead for POST /api/products and PUT /api/products/{id}.
+ */
+public class CreateProductRequest {
+
+    private String           title;
+    private String           description;
+    private BigDecimal       price;
+    private String           city;
+    private String           state;
+    private String           images;
+    private boolean          featured;
+    private ProductCondition condition;
+    private CategoryRef      category;
+
+    // Inner class to accept { "id": 3 } from frontend
+    public static class CategoryRef {
+        private Long id;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+    }
+
+    public String           getTitle()       { return title; }
+    public String           getDescription() { return description; }
+    public BigDecimal       getPrice()       { return price; }
+    public String           getCity()        { return city; }
+    public String           getState()       { return state; }
+    public String           getImages()      { return images; }
+    public boolean          isFeatured()     { return featured; }
+    public ProductCondition getCondition()   { return condition; }
+    public CategoryRef      getCategory()    { return category; }
+
+    public void setTitle(String title)                  { this.title = title; }
+    public void setDescription(String description)      { this.description = description; }
+    public void setPrice(BigDecimal price)              { this.price = price; }
+    public void setCity(String city)                    { this.city = city; }
+    public void setState(String state)                  { this.state = state; }
+    public void setImages(String images)                { this.images = images; }
+    public void setFeatured(boolean featured)           { this.featured = featured; }
+    public void setCondition(ProductCondition condition){ this.condition = condition; }
+    public void setCategory(CategoryRef category)       { this.category = category; }
+}package com.tradenest.api.dto;
+
+public class CreateReviewRequest {
+
+    private Long sellerId;
+    private int rating;
+    private String comment;
+
+    public Long getSellerId() { return sellerId; }
+    public int getRating() { return rating; }
+    public String getComment() { return comment; }
+
+    public void setSellerId(Long sellerId) { this.sellerId = sellerId; }
+    public void setRating(int rating) { this.rating = rating; }
+    public void setComment(String comment) { this.comment = comment; }
+}package com.tradenest.api.dto;
+
+public class DashboardDto {
+
+    private int totalProducts;
+    private int totalOffersReceived;
+    private int totalWishlistCount;
+    private int totalReviews;
+    private double averageRating;
+
+    public DashboardDto(int totalProducts,
+                        int totalOffersReceived,
+                        int totalWishlistCount,
+                        int totalReviews,
+                        double averageRating) {
+
+        this.totalProducts = totalProducts;
+        this.totalOffersReceived = totalOffersReceived;
+        this.totalWishlistCount = totalWishlistCount;
+        this.totalReviews = totalReviews;
+        this.averageRating = averageRating;
+    }
+
+    public int getTotalProducts() { return totalProducts; }
+    public int getTotalOffersReceived() { return totalOffersReceived; }
+    public int getTotalWishlistCount() { return totalWishlistCount; }
+    public int getTotalReviews() { return totalReviews; }
+    public double getAverageRating() { return averageRating; }
+}package com.tradenest.api.dto;
+
+public record DashboardStatsDto(
+        int totalAds,
+        int activeAds,
+        int totalViews,
+        int totalWishlistSaves,
+        int totalOffers,
+        int totalMessages
+) {}package com.tradenest.api.dto;
+
+public class LoginRequest {
+
+    private String email;
+    private String password;
+
+    public String getEmail() { return email; }
+    public String getPassword() { return password; }
+}package com.tradenest.api.dto;
+
+import java.math.BigDecimal;
+
+public class MakeOfferRequest {
+
+    private Long productId;
+    private BigDecimal amount;
+    private String message;
+
+    public Long getProductId() { return productId; }
+    public BigDecimal getAmount() { return amount; }
+    public String getMessage() { return message; }
+
+    public void setProductId(Long productId) { this.productId = productId; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setMessage(String message) { this.message = message; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.Message;
+import java.time.LocalDateTime;
+
+public class MessageDto {
+
+    private Long id;
+    private Long senderId;
+    private String content;
+    private LocalDateTime sentAt;
+
+    public static MessageDto fromEntity(Message m) {
+        MessageDto d = new MessageDto();
+        d.id = m.getId();
+        d.senderId = m.getSender().getId();
+        d.content = m.getContent();
+        d.sentAt = m.getSentAt();
+        return d;
+    }
+
+    public Long getId() { return id; }
+    public Long getSenderId() { return senderId; }
+    public String getContent() { return content; }
+    public LocalDateTime getSentAt() { return sentAt; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.Notification;
+import com.tradenest.api.enums.NotificationType;
+
+import java.time.LocalDateTime;
+
+public class NotificationDto {
+
+    private Long             id;
+    private String           title;
+    private String           message;
+    private NotificationType type;
+    private Long             referenceId;
+    private boolean          read;
+    private LocalDateTime    createdAt;
+
+    public static NotificationDto fromEntity(Notification n) {
+        NotificationDto d = new NotificationDto();
+        d.id          = n.getId();
+        d.title       = n.getTitle();
+        d.message     = n.getMessage();
+        d.type        = n.getType();
+        d.referenceId = n.getReferenceId();
+        d.read        = n.isRead();
+        d.createdAt   = n.getCreatedAt();
+        return d;
+    }
+
+    public Long             getId()          { return id; }
+    public String           getTitle()       { return title; }
+    public String           getMessage()     { return message; }
+    public NotificationType getType()        { return type; }
+    public Long             getReferenceId() { return referenceId; }
+    public boolean          isRead()         { return read; }
+    public LocalDateTime    getCreatedAt()   { return createdAt; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.Offer;
+import java.math.BigDecimal;
+
+public class OfferDto {
+
+    private Long       id;
+    private Long       productId;
+    private String     productTitle;   // FIX: show title in OffersPage instead of "Product #N"
+    private Long       buyerId;
+    private String     buyerName;      // FIX: useful for seller-side received offers
+    private BigDecimal amount;
+    private String     status;
+    private BigDecimal counterAmount;
+    private String     message;        // FIX: was missing — frontend displays this
+
+    public static OfferDto fromEntity(Offer o) {
+        OfferDto d = new OfferDto();
+        d.id            = o.getId();
+        d.productId     = o.getProduct().getId();
+        d.productTitle  = o.getProduct().getTitle();           // FIX
+        d.buyerId       = o.getBuyer().getId();
+        d.buyerName     = o.getBuyer().getName();              // FIX
+        d.amount        = o.getAmount();
+        d.status        = o.getStatus().name();
+        d.counterAmount = o.getCounterAmount();
+        d.message       = o.getMessage();                      // FIX
+        return d;
+    }
+
+    public Long       getId()            { return id; }
+    public Long       getProductId()     { return productId; }
+    public String     getProductTitle()  { return productTitle; }
+    public Long       getBuyerId()       { return buyerId; }
+    public String     getBuyerName()     { return buyerName; }
+    public BigDecimal getAmount()        { return amount; }
+    public String     getStatus()        { return status; }
+    public BigDecimal getCounterAmount() { return counterAmount; }
+    public String     getMessage()       { return message; }
+}package com.tradenest.api.dto;
+
+import org.springframework.data.domain.Page;
+
+import java.util.List;
+
+public class PagedResponse<T> {
+
+    private List<T> content;
+    private int page;
+    private int size;
+    private long totalElements;
+    private int totalPages;
+    private boolean last;
+
+    public PagedResponse() {}
+
+    public static <T> PagedResponse<T> of(Page<T> page) {
+        PagedResponse<T> r = new PagedResponse<>();
+        r.content       = page.getContent();
+        r.page          = page.getNumber();
+        r.size          = page.getSize();
+        r.totalElements = page.getTotalElements();
+        r.totalPages    = page.getTotalPages();
+        r.last          = page.isLast();
+        return r;
+    }
+
+    public List<T> getContent()       { return content; }
+    public int     getPage()          { return page; }
+    public int     getSize()          { return size; }
+    public long    getTotalElements() { return totalElements; }
+    public int     getTotalPages()    { return totalPages; }
+    public boolean isLast()           { return last; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.Product;
+import com.tradenest.api.enums.ProductCondition;
+import com.tradenest.api.enums.ProductStatus;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+public class ProductDto {
+
+    private Long             id;
+    private String           title;
+    private String           description;
+    private BigDecimal       price;
+    private String           city;
+    private String           state;
+    private String           images;
+    private boolean          featured;
+    private int              viewCount;
+    private LocalDateTime    postedDate;
+    private ProductStatus    status;
+    private ProductCondition condition;   // NEW
+
+    // Flat category
+    private Long   categoryId;
+    private String categoryName;
+    private String categorySlug;
+    private String categoryIcon;
+
+    // Flat seller
+    private Long    sellerId;
+    private String  sellerName;
+    private String  sellerCity;
+    private String  sellerAvatarUrl;
+    private boolean sellerVerified;
+
+    public ProductDto() {}
+
+    public static ProductDto fromEntity(Product p) {
+        ProductDto d = new ProductDto();
+        d.id          = p.getId();
+        d.title       = p.getTitle();
+        d.description = p.getDescription();
+        d.price       = p.getPrice();
+        d.city        = p.getCity();
+        d.state       = p.getState();
+        d.images      = p.getImages();
+        d.featured    = p.isFeatured();
+        d.viewCount   = p.getViewCount();
+        d.postedDate  = p.getPostedDate();
+        d.status      = p.getStatus();
+        d.condition   = p.getCondition();   // NEW
+
+        if (p.getCategory() != null) {
+            d.categoryId   = p.getCategory().getId();
+            d.categoryName = p.getCategory().getName();
+            d.categorySlug = p.getCategory().getSlug();
+            d.categoryIcon = p.getCategory().getIcon();
+        }
+
+        if (p.getSeller() != null) {
+            d.sellerId        = p.getSeller().getId();
+            d.sellerName      = p.getSeller().getName();
+            d.sellerCity      = p.getSeller().getCity();
+            d.sellerAvatarUrl = p.getSeller().getAvatarUrl();
+            d.sellerVerified  = p.getSeller().isVerified();
+        }
+
+        return d;
+    }
+
+    // Getters
+    public Long             getId()             { return id; }
+    public String           getTitle()          { return title; }
+    public String           getDescription()    { return description; }
+    public BigDecimal       getPrice()          { return price; }
+    public String           getCity()           { return city; }
+    public String           getState()          { return state; }
+    public String           getImages()         { return images; }
+    public boolean          isFeatured()        { return featured; }
+    public int              getViewCount()      { return viewCount; }
+    public LocalDateTime    getPostedDate()     { return postedDate; }
+    public ProductStatus    getStatus()         { return status; }
+    public ProductCondition getCondition()      { return condition; }
+
+    public Long    getCategoryId()              { return categoryId; }
+    public String  getCategoryName()            { return categoryName; }
+    public String  getCategorySlug()            { return categorySlug; }
+    public String  getCategoryIcon()            { return categoryIcon; }
+
+    public Long    getSellerId()                { return sellerId; }
+    public String  getSellerName()              { return sellerName; }
+    public String  getSellerCity()              { return sellerCity; }
+    public String  getSellerAvatarUrl()         { return sellerAvatarUrl; }
+    public boolean isSellerVerified()           { return sellerVerified; }
+}package com.tradenest.api.dto;
+
+import jakarta.validation.constraints.*;
+
+public class RegisterRequest {
+
+    @NotBlank(message = "Name is required")
+    @Size(min = 2, max = 60, message = "Name must be 2–60 characters")
+    private String name;
+
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email address")
+    private String email;
+
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, message = "Password must be at least 6 characters")
+    private String password;
+
+    // Indian mobile: starts with 6–9, exactly 10 digits
+    @Pattern(
+        regexp  = "^[6-9]\\d{9}$",
+        message = "Phone must be a valid 10-digit Indian mobile number"
+    )
+    private String phone;
+
+    @NotBlank(message = "City is required")
+    private String city;
+
+    private String state;
+
+    // ─── Getters / Setters ────────────────────────────────────────────────────
+
+    public String getName()     { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getEmail()    { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
+    public String getPhone()    { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+
+    public String getCity()     { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState()    { return state; }
+    public void setState(String state) { this.state = state; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.Review;
+import java.time.LocalDateTime;
+
+public class ReviewDto {
+
+    private Long id;
+    private Long reviewerId;
+    private int rating;
+    private String comment;
+    private LocalDateTime createdAt;
+
+    public static ReviewDto fromEntity(Review r) {
+        ReviewDto d = new ReviewDto();
+        d.id = r.getId();
+        d.reviewerId = r.getReviewer().getId();
+        d.rating = r.getRating();
+        d.comment = r.getComment();
+        d.createdAt = r.getCreatedAt();
+        return d;
+    }
+
+    public Long getId() { return id; }
+    public Long getReviewerId() { return reviewerId; }
+    public int getRating() { return rating; }
+    public String getComment() { return comment; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+}package com.tradenest.api.dto;
+
+import java.util.Map;
+
+public class ReviewStatsDto {
+
+    private double averageRating;
+    private int totalReviews;
+    private Map<Integer, Integer> distribution;
+
+    public ReviewStatsDto(double avg, int total, Map<Integer, Integer> dist) {
+        this.averageRating = avg;
+        this.totalReviews = total;
+        this.distribution = dist;
+    }
+
+    public double getAverageRating() { return averageRating; }
+    public int getTotalReviews() { return totalReviews; }
+    public Map<Integer, Integer> getDistribution() { return distribution; }
+}package com.tradenest.api.dto;
+
+public class SendMessageRequest {
+
+    private String content;
+
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+}package com.tradenest.api.dto;
+
+public class StartConversationRequest {
+
+    private Long productId;
+    private Long sellerId;
+    private String message;
+
+    public Long getProductId() { return productId; }
+    public Long getSellerId() { return sellerId; }
+    public String getMessage() { return message; }
+
+    public void setProductId(Long productId) { this.productId = productId; }
+    public void setSellerId(Long sellerId) { this.sellerId = sellerId; }
+    public void setMessage(String message) { this.message = message; }
+}package com.tradenest.api.dto;
+
+// PUT /api/auth/profile
+public class UpdateProfileRequest {
+
+    private String name;
+    private String phone;
+    private String city;
+    private String state;
+    private String avatarUrl;
+
+    // FIX: Password change — frontend was re-logging in to verify old password
+    //      which is insecure and broken. Handle it server-side instead.
+    private String currentPassword;
+    private String newPassword;
+
+    public String getName()            { return name; }
+    public void setName(String name)   { this.name = name; }
+
+    public String getPhone()              { return phone; }
+    public void setPhone(String phone)    { this.phone = phone; }
+
+    public String getCity()               { return city; }
+    public void setCity(String city)      { this.city = city; }
+
+    public String getState()              { return state; }
+    public void setState(String state)    { this.state = state; }
+
+    public String getAvatarUrl()                    { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl)      { this.avatarUrl = avatarUrl; }
+
+    public String getCurrentPassword()                        { return currentPassword; }
+    public void setCurrentPassword(String currentPassword)    { this.currentPassword = currentPassword; }
+
+    public String getNewPassword()                    { return newPassword; }
+    public void setNewPassword(String newPassword)    { this.newPassword = newPassword; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.User;
+
+public class UserDto {
+
+    private Long id;
+    private String name;
+    private String email;
+    private String phone;
+    private String city;
+    private String state;
+    private String avatarUrl;
+    private boolean verified;
+
+    public UserDto() {}
+
+    public static UserDto fromEntity(User u) {
+        UserDto dto = new UserDto();
+        dto.id = u.getId();
+        dto.name = u.getName();
+        dto.email = u.getEmail();
+        dto.phone = u.getPhone();
+        dto.city = u.getCity();
+        dto.state = u.getState();
+        dto.avatarUrl = u.getAvatarUrl();
+        dto.verified = u.isVerified();
+        return dto;
+    }
+
+    public Long getId() { return id; }
+    public String getName() { return name; }
+    public String getEmail() { return email; }
+    public String getPhone() { return phone; }
+    public String getCity() { return city; }
+    public String getState() { return state; }
+    public String getAvatarUrl() { return avatarUrl; }
+    public boolean isVerified() { return verified; }
+}package com.tradenest.api.dto;
+
+import com.tradenest.api.entity.Wishlist;
+
+public class WishlistDto {
+
+    private Long productId;
+    private String title;
+    private String city;
+    private String image;
+
+    public static WishlistDto fromEntity(Wishlist w) {
+        WishlistDto d = new WishlistDto();
+        d.productId = w.getProduct().getId();
+        d.title = w.getProduct().getTitle();
+        d.city = w.getProduct().getCity();
+        d.image = w.getProduct().getImages();
+        return d;
+    }
+
+    public Long getProductId() { return productId; }
+    public String getTitle() { return title; }
+    public String getCity() { return city; }
+    public String getImage() { return image; }
+}package com.tradenest.api.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(
+        name = "categories",
+        indexes = {
+                @Index(columnList = "slug", unique = true),
+                @Index(columnList = "name")
+        }
+)
+public class Category {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false, unique = true)
+    private String slug;
+
+    private String icon;
+
+    @Column(length = 1000)
+    private String description;
+
+    private int productCount = 0;
+
+    public Category() {}
+
+    public Long getId() { return id; }
+    public String getName() { return name; }
+    public String getSlug() { return slug; }
+    public String getIcon() { return icon; }
+    public String getDescription() { return description; }
+    public int getProductCount() { return productCount; }
+
+    public void setId(Long id) { this.id = id; }
+    public void setName(String name) { this.name = name; }
+    public void setSlug(String slug) { this.slug = slug; }
+    public void setIcon(String icon) { this.icon = icon; }
+    public void setDescription(String description) { this.description = description; }
+    public void setProductCount(int productCount) { this.productCount = productCount; }
+}package com.tradenest.api.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "cities")
+public class City {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String city;
+    private String state;
+    private double lat;
+    private double lng;
+
+    public City() {}
+
+    public Long getId() { return id; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public double getLat() { return lat; }
+    public void setLat(double lat) { this.lat = lat; }
+
+    public double getLng() { return lng; }
+    public void setLng(double lng) { this.lng = lng; }
+}package com.tradenest.api.entity;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "conversations",
+       uniqueConstraints = @UniqueConstraint(
+               columnNames = {"buyer_id", "seller_id", "product_id"}
+       ))
+public class Conversation {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User buyer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User seller;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Product product;
+
+    private String lastMessage;
+    private LocalDateTime lastMessageAt;
+
+    private int buyerUnread;
+    private int sellerUnread;
+
+    public Conversation() {}
+
+    @PrePersist
+    public void prePersist() {
+        lastMessageAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public User getBuyer() { return buyer; }
+    public User getSeller() { return seller; }
+    public Product getProduct() { return product; }
+    public String getLastMessage() { return lastMessage; }
+    public LocalDateTime getLastMessageAt() { return lastMessageAt; }
+    public int getBuyerUnread() { return buyerUnread; }
+    public int getSellerUnread() { return sellerUnread; }
+
+    public void setBuyer(User buyer) { this.buyer = buyer; }
+    public void setSeller(User seller) { this.seller = seller; }
+    public void setProduct(Product product) { this.product = product; }
+    public void setLastMessage(String lastMessage) { this.lastMessage = lastMessage; }
+    public void setLastMessageAt(LocalDateTime lastMessageAt) { this.lastMessageAt = lastMessageAt; }
+    public void setBuyerUnread(int buyerUnread) { this.buyerUnread = buyerUnread; }
+    public void setSellerUnread(int sellerUnread) { this.sellerUnread = sellerUnread; }
+}package com.tradenest.api.entity;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "messages")
+public class Message {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Conversation conversation;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User sender;
+
+    @Column(length = 2000)
+    private String content;
+
+    private LocalDateTime sentAt;
+    private boolean read;
+
+    public Message() {}
+
+    @PrePersist
+    public void prePersist() {
+        sentAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public Conversation getConversation() { return conversation; }
+    public User getSender() { return sender; }
+    public String getContent() { return content; }
+    public LocalDateTime getSentAt() { return sentAt; }
+    public boolean isRead() { return read; }
+
+    public void setConversation(Conversation conversation) { this.conversation = conversation; }
+    public void setSender(User sender) { this.sender = sender; }
+    public void setContent(String content) { this.content = content; }
+    public void setRead(boolean read) { this.read = read; }
+}package com.tradenest.api.entity;
+
+import com.tradenest.api.enums.NotificationType;
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "notifications")
+public class Notification {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User user;
+
+    private String title;
+
+    @Column(columnDefinition = "TEXT")
+    private String message;
+
+    @Enumerated(EnumType.STRING)
+    private NotificationType type;
+
+    private Long referenceId;
+
+    private boolean read;
+
+    private LocalDateTime createdAt;
+
+    public Notification() {}
+
+    @PrePersist
+    public void prePersist() {
+        createdAt = LocalDateTime.now();
+        read = false;
+    }
+
+    public Long getId() { return id; }
+
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
+
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+
+    public String getMessage() { return message; }
+    public void setMessage(String message) { this.message = message; }
+
+    public NotificationType getType() { return type; }
+    public void setType(NotificationType type) { this.type = type; }
+
+    public Long getReferenceId() { return referenceId; }
+    public void setReferenceId(Long referenceId) { this.referenceId = referenceId; }
+
+    public boolean isRead() { return read; }
+    public void setRead(boolean read) { this.read = read; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+}package com.tradenest.api.entity;
+
+import com.tradenest.api.enums.OfferStatus;
+import jakarta.persistence.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "offers")
+public class Offer {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User buyer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Product product;
+
+    private BigDecimal amount;
+    private String message;
+
+    @Enumerated(EnumType.STRING)
+    private OfferStatus status;
+
+    private BigDecimal counterAmount;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public Offer() {}
+
+    @PrePersist
+    public void prePersist() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+        status = OfferStatus.PENDING;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public User getBuyer() { return buyer; }
+    public Product getProduct() { return product; }
+    public BigDecimal getAmount() { return amount; }
+    public String getMessage() { return message; }
+    public OfferStatus getStatus() { return status; }
+    public BigDecimal getCounterAmount() { return counterAmount; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+
+    public void setBuyer(User buyer) { this.buyer = buyer; }
+    public void setProduct(Product product) { this.product = product; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setMessage(String message) { this.message = message; }
+    public void setStatus(OfferStatus status) { this.status = status; }
+    public void setCounterAmount(BigDecimal counterAmount) { this.counterAmount = counterAmount; }
+}package com.tradenest.api.entity;
+
+import com.tradenest.api.enums.ProductCondition;
+import com.tradenest.api.enums.ProductStatus;
+import jakarta.persistence.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "products", indexes = {
+        @Index(columnList = "status"),
+        @Index(columnList = "city"),
+        @Index(columnList = "featured")
+})
+public class Product {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String title;
+
+    @Column(length = 2000)
+    private String description;
+
+    private BigDecimal price;
+    private String city;
+    private String state;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Category category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User seller;
+
+    @Column(length = 3000)
+    private String images;
+
+    private boolean featured = false;
+
+    private int viewCount = 0;
+
+    private LocalDateTime postedDate;
+
+    @Enumerated(EnumType.STRING)
+    private ProductStatus status;
+
+    // ── NEW: product condition ────────────────────────────────────────────────
+    @Enumerated(EnumType.STRING)
+    private ProductCondition condition;
+
+    public Product() {}
+
+    @PrePersist
+    public void prePersist() {
+        postedDate = LocalDateTime.now();
+        status = ProductStatus.ACTIVE;
+    }
+
+    // ── Getters ───────────────────────────────────────────────────────────────
+
+    public Long             getId()          { return id; }
+    public String           getTitle()       { return title; }
+    public String           getDescription() { return description; }
+    public BigDecimal       getPrice()       { return price; }
+    public String           getCity()        { return city; }
+    public String           getState()       { return state; }
+    public Category         getCategory()    { return category; }
+    public User             getSeller()      { return seller; }
+    public String           getImages()      { return images; }
+    public boolean          isFeatured()     { return featured; }
+    public int              getViewCount()   { return viewCount; }
+    public LocalDateTime    getPostedDate()  { return postedDate; }
+    public ProductStatus    getStatus()      { return status; }
+    public ProductCondition getCondition()   { return condition; }
+
+    // ── Setters ───────────────────────────────────────────────────────────────
+
+    public void setId(Long id)                        { this.id = id; }
+    public void setTitle(String title)                { this.title = title; }
+    public void setDescription(String d)              { this.description = d; }
+    public void setPrice(BigDecimal price)            { this.price = price; }
+    public void setCity(String city)                  { this.city = city; }
+    public void setState(String state)                { this.state = state; }
+    public void setCategory(Category category)        { this.category = category; }
+    public void setSeller(User seller)                { this.seller = seller; }
+    public void setImages(String images)              { this.images = images; }
+    public void setFeatured(boolean featured)         { this.featured = featured; }
+    public void setViewCount(int viewCount)           { this.viewCount = viewCount; }
+    public void setStatus(ProductStatus status)       { this.status = status; }
+    public void setCondition(ProductCondition cond)   { this.condition = cond; }
+}package com.tradenest.api.entity;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "reviews",
+       uniqueConstraints = @UniqueConstraint(
+               columnNames = {"reviewer_id", "seller_id"}
+       ))
+public class Review {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User reviewer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User seller;
+
+    private int rating;
+
+    @Column(length = 1000)
+    private String comment;
+
+    private LocalDateTime createdAt;
+
+    public Review() {}
+
+    @PrePersist
+    public void prePersist() {
+        createdAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public User getReviewer() { return reviewer; }
+    public User getSeller() { return seller; }
+    public int getRating() { return rating; }
+    public String getComment() { return comment; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+
+    public void setReviewer(User reviewer) { this.reviewer = reviewer; }
+    public void setSeller(User seller) { this.seller = seller; }
+    public void setRating(int rating) { this.rating = rating; }
+    public void setComment(String comment) { this.comment = comment; }
+}package com.tradenest.api.entity;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "users")
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+
+    @Column(unique = true)
+    private String email;
+
+    private String password;
+    private String phone;
+    private String city;
+    private String state;
+    private String avatarUrl;
+    private boolean verified;
+
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+
+    public boolean isVerified() { return verified; }
+    public void setVerified(boolean verified) { this.verified = verified; }
+}package com.tradenest.api.entity;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(
+        name = "wishlists",
+        uniqueConstraints = @UniqueConstraint(
+                columnNames = {"user_id", "product_id"}
+        )
+)
+public class Wishlist {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Product product;
+
+    private LocalDateTime addedAt;
+
+    public Wishlist() {}
+
+    @PrePersist
+    public void prePersist() {
+        addedAt = LocalDateTime.now();
+    }
+
+    public Long getId() { return id; }
+    public User getUser() { return user; }
+    public Product getProduct() { return product; }
+    public LocalDateTime getAddedAt() { return addedAt; }
+
+    public void setUser(User user) { this.user = user; }
+    public void setProduct(Product product) { this.product = product; }
+}package com.tradenest.api.enums;
+
+public enum MessageType {
+    TEXT,
+    OFFER,
+    SYSTEM
+}package com.tradenest.api.enums;
+
+public enum NotificationType {
+    MESSAGE,
+    OFFER,
+    REVIEW,
+    SYSTEM
+}package com.tradenest.api.enums;
+
+public enum OfferStatus {
+    PENDING,
+    ACCEPTED,
+    REJECTED,
+    COUNTERED
+}package com.tradenest.api.enums;
+
+public enum ProductCondition {
+    NEW,
+    LIKE_NEW,
+    GOOD,
+    FAIR
+}package com.tradenest.api.enums;
+
+public enum ProductStatus {
+    ACTIVE,
+    SOLD,
+    EXPIRED
+}package com.tradenest.api.exception;
+
+import com.tradenest.api.util.ApiResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.*;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    // ✅ Validation failures (from @Valid) → 400 with the exact field + message
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Object>> handleValidation(
+            MethodArgumentNotValidException ex) {
+
+        String error = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .findFirst()
+                .orElse("Validation error");
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(error));
+    }
+
+    // ✅ "not found" messages → 404 instead of 400
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ApiResponse<Object>> handleRuntime(RuntimeException ex) {
+        String msg = ex.getMessage();
+        if (msg != null) {
+            String lower = msg.toLowerCase();
+            if (lower.contains("not found")) {
+                return ResponseEntity
+                        .status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.error(msg));
+            }
+            if (lower.contains("unauthorized")) {
+                return ResponseEntity
+                        .status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error(msg));
+            }
+        }
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(msg));
+    }
+
+    // ✅ Unexpected exceptions → 500 (never leaks stack trace to client)
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Object>> handleGeneral(Exception ex) {
+        ex.printStackTrace(); // Replace with proper logger (SLF4J) in production
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Internal server error"));
+    }
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Category;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface CategoryRepository extends JpaRepository<Category, Long> {
+
+    Optional<Category> findBySlug(String slug);
+
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.City;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface CityRepository extends JpaRepository<City, Long> {
+
+    List<City> findByState(String state);
+
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Conversation;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface ConversationRepository extends JpaRepository<Conversation, Long> {
+
+    Optional<Conversation> findByBuyerIdAndSellerIdAndProductId(
+            Long buyerId, Long sellerId, Long productId
+    );
+
+    List<Conversation> findByBuyerIdOrSellerIdOrderByLastMessageAtDesc(
+            Long buyerId, Long sellerId
+    );
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Message;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface MessageRepository extends JpaRepository<Message, Long> {
+
+    List<Message> findByConversationIdOrderBySentAtAsc(Long conversationId);
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Notification;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface NotificationRepository extends JpaRepository<Notification, Long> {
+
+    List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    int countByUserIdAndReadFalse(Long userId);
+
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Offer;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface OfferRepository extends JpaRepository<Offer, Long> {
+
+    List<Offer> findByBuyerIdOrderByCreatedAtDesc(Long buyerId);
+
+    List<Offer> findByProductSellerIdOrderByCreatedAtDesc(Long sellerId);
+
+    int countByProductSellerId(Long sellerId);
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Product;
+import com.tradenest.api.enums.ProductStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+
+    // ── Existing queries ───────────────────────────────────────────────────────
+
+    @Query("SELECT p FROM Product p JOIN FETCH p.category JOIN FETCH p.seller " +
+           "WHERE p.status = :status ORDER BY p.postedDate DESC")
+    List<Product> findByStatus(@Param("status") ProductStatus status);
+
+    @Query("SELECT p FROM Product p JOIN FETCH p.category JOIN FETCH p.seller " +
+           "WHERE p.seller.id = :sellerId ORDER BY p.postedDate DESC")
+    List<Product> findBySellerId(@Param("sellerId") Long sellerId);
+
+    // FIX: replaces findBySellerId().size() in DashboardService
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.seller.id = :sellerId")
+    int countBySellerId(@Param("sellerId") Long sellerId);
+
+    @Query("SELECT p FROM Product p JOIN FETCH p.category JOIN FETCH p.seller " +
+           "WHERE p.featured = true AND p.status = :status ORDER BY p.postedDate DESC")
+    List<Product> findByFeaturedTrueAndStatus(@Param("status") ProductStatus status);
+
+    @Query("SELECT p FROM Product p JOIN FETCH p.category JOIN FETCH p.seller " +
+           "WHERE p.id = :id")
+    Optional<Product> findByIdWithDetails(@Param("id") Long id);
+
+    // ── Category filter with pagination ───────────────────────────────────────
+
+    @Query(value = "SELECT p FROM Product p JOIN FETCH p.category JOIN FETCH p.seller " +
+                   "WHERE p.category.slug = :slug AND p.status = :status ORDER BY p.postedDate DESC",
+           countQuery = "SELECT COUNT(p) FROM Product p " +
+                        "WHERE p.category.slug = :slug AND p.status = :status")
+    Page<Product> findByCategorySlugAndStatusPageable(@Param("slug")   String slug,
+                                                      @Param("status") ProductStatus status,
+                                                      Pageable pageable);
+
+    // ── Full-text search with optional filters ────────────────────────────────
+
+    @Query(value = "SELECT p FROM Product p JOIN FETCH p.category JOIN FETCH p.seller " +
+                   "WHERE p.status = :status " +
+                   "AND (:q IS NULL OR LOWER(p.title) LIKE :q OR LOWER(p.description) LIKE :q) " +
+                   "AND (:city IS NULL OR LOWER(p.city) = :city) " +
+                   "AND (:slug IS NULL OR p.category.slug = :slug) " +
+                   "AND (:minPrice IS NULL OR p.price >= :minPrice) " +
+                   "AND (:maxPrice IS NULL OR p.price <= :maxPrice) " +
+                   "ORDER BY p.postedDate DESC",
+           countQuery = "SELECT COUNT(p) FROM Product p " +
+                        "WHERE p.status = :status " +
+                        "AND (:q IS NULL OR LOWER(p.title) LIKE :q OR LOWER(p.description) LIKE :q) " +
+                        "AND (:city IS NULL OR LOWER(p.city) = :city) " +
+                        "AND (:slug IS NULL OR p.category.slug = :slug) " +
+                        "AND (:minPrice IS NULL OR p.price >= :minPrice) " +
+                        "AND (:maxPrice IS NULL OR p.price <= :maxPrice)")
+    Page<Product> search(@Param("q")        String q,
+                         @Param("city")     String city,
+                         @Param("slug")     String slug,
+                         @Param("minPrice") BigDecimal minPrice,
+                         @Param("maxPrice") BigDecimal maxPrice,
+                         @Param("status")   ProductStatus status,
+                         Pageable pageable);
+
+    // ── Paginated all-active listing ──────────────────────────────────────────
+
+    @Query(value = "SELECT p FROM Product p JOIN FETCH p.category JOIN FETCH p.seller " +
+                   "WHERE p.status = :status ORDER BY p.postedDate DESC",
+           countQuery = "SELECT COUNT(p) FROM Product p WHERE p.status = :status")
+    Page<Product> findByStatusPageable(@Param("status") ProductStatus status, Pageable pageable);
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Review;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface ReviewRepository extends JpaRepository<Review, Long> {
+
+    List<Review> findBySellerIdOrderByCreatedAtDesc(Long sellerId);
+
+    Optional<Review> findByReviewerIdAndSellerId(Long reviewerId, Long sellerId);
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
+
+public interface UserRepository extends JpaRepository<User, Long> {
+
+    Optional<User> findByEmail(String email);
+
+    boolean existsByEmailIgnoreCase(String email);
+}package com.tradenest.api.repository;
+
+import com.tradenest.api.entity.Wishlist;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface WishlistRepository extends JpaRepository<Wishlist, Long> {
+
+    List<Wishlist> findByUserId(Long userId);
+
+    Optional<Wishlist> findByUserIdAndProductId(Long userId, Long productId);
+
+    boolean existsByUserIdAndProductId(Long userId, Long productId);
+
+    void deleteByUserIdAndProductId(Long userId, Long productId);
+
+    int countByProductSellerId(Long sellerId);
+}package com.tradenest.api.security;
+
+import jakarta.servlet.http.*;
+import jakarta.servlet.ServletException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+import java.io.IOException;
+
+@Component
+public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    @Override
+    public void commence(HttpServletRequest request,
+                         HttpServletResponse response,
+                         org.springframework.security.core.AuthenticationException authException)
+            throws IOException, ServletException {
+
+        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+    }
+}package com.tradenest.api.security;
+
+import com.tradenest.api.entity.User;
+import com.tradenest.api.repository.UserRepository;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.Collections;
+
+@Component
+public class JwtFilter extends OncePerRequestFilter {
+
+    private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
+
+    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepository) {
+        this.jwtUtil = jwtUtil;
+        this.userRepository = userRepository;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String header = request.getHeader("Authorization");
+
+        if (header != null && header.startsWith("Bearer ")) {
+
+            String token = header.substring(7);
+
+            if (jwtUtil.validate(token)) {
+
+                Long userId = jwtUtil.extractUserId(token);
+
+                if (SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                    User user = userRepository.findById(userId).orElse(null);
+
+                    if (user != null) {
+                        UsernamePasswordAuthenticationToken auth =
+                                new UsernamePasswordAuthenticationToken(
+                                        user, null, Collections.emptyList());
+
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
+                }
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}package com.tradenest.api.security;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.util.Date;
+
+@Component
+public class JwtUtil {
+
+    @Value("${app.jwt.secret}")
+    private String secret;
+
+    @Value("${app.jwt.expiration-ms}")
+    private long expiration;
+
+    private Key key;
+
+    @PostConstruct
+    public void init() {
+        key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public String generateToken(Long userId) {
+        return Jwts.builder()
+                .setSubject(String.valueOf(userId))
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public Long extractUserId(String token) {
+        return Long.parseLong(
+                Jwts.parserBuilder()
+                        .setSigningKey(key)
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody()
+                        .getSubject()
+        );
+    }
+
+    public boolean validate(String token) {
+        try {
+            Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token);
+            return true;
+        } catch (ExpiredJwtException e) {
+            throw new RuntimeException("Token expired");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+}package com.tradenest.api.security;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.*;
+
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private final JwtFilter jwtFilter;
+
+    // ✅ Read the deployed frontend URL from environment variable
+    // Set FRONTEND_URL=https://your-app.vercel.app in Render dashboard
+    @Value("${FRONTEND_URL:}")
+    private String frontendUrl;
+
+    public SecurityConfig(JwtFilter jwtFilter) {
+        this.jwtFilter = jwtFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .headers(h -> h.frameOptions(f -> f.disable()))
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/h2-console/**").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.GET,
+                    "/api/products/**",
+                    "/api/categories/**",
+                    "/api/cities/**",
+                    "/api/reviews/**",
+                    "/uploads/**"
+                ).permitAll()
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+
+        // ✅ Build allowed origins list dynamically
+        List<String> origins = new ArrayList<>(Arrays.asList(
+            // Local dev
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:5176",
+            "http://localhost:5177",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000"
+        ));
+
+        // ✅ Add production frontend URL if set (e.g. https://tradenest.vercel.app)
+        if (frontendUrl != null && !frontendUrl.isBlank()) {
+            origins.add(frontendUrl.trim());
+            // Also allow without trailing slash
+            if (frontendUrl.endsWith("/")) {
+                origins.add(frontendUrl.substring(0, frontendUrl.length() - 1));
+            }
+        }
+
+        config.setAllowedOrigins(origins);
+        config.setAllowedMethods(Arrays.asList(
+            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
+        ));
+        config.setAllowedHeaders(Arrays.asList(
+            "Authorization", "Content-Type", "Accept",
+            "Origin", "X-Requested-With",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers"
+        ));
+        config.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.*;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.repository.UserRepository;
+import com.tradenest.api.security.JwtUtil;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder encoder;
+    private final JwtUtil jwtUtil;
+
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder encoder,
+                       JwtUtil jwtUtil) {
+        this.userRepository = userRepository;
+        this.encoder        = encoder;
+        this.jwtUtil        = jwtUtil;
+    }
+
+    public AuthResponse register(RegisterRequest req) {
+        if (userRepository.existsByEmailIgnoreCase(req.getEmail())) {
+            throw new RuntimeException("Email already registered");
+        }
+
+        User u = new User();
+        u.setName(req.getName().trim());
+        u.setEmail(req.getEmail().toLowerCase().trim());
+        u.setPassword(encoder.encode(req.getPassword()));
+
+        // Normalise phone: strip non-digits (safety net — frontend already does this)
+        String phone = req.getPhone() == null ? null
+                       : req.getPhone().replaceAll("\\D", "");
+        u.setPhone(phone);
+        u.setCity(req.getCity());
+        u.setState(req.getState());
+        u.setVerified(true);
+
+        User saved = userRepository.save(u);
+        return new AuthResponse(jwtUtil.generateToken(saved.getId()),
+                                UserDto.fromEntity(saved));
+    }
+
+    public AuthResponse login(LoginRequest req) {
+        User user = userRepository
+                .findByEmail(req.getEmail().toLowerCase().trim())
+                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
+
+        if (!encoder.matches(req.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Invalid credentials");
+        }
+
+        return new AuthResponse(jwtUtil.generateToken(user.getId()),
+                                UserDto.fromEntity(user));
+    }
+
+    public UserDto getProfile(Long userId) {
+        return UserDto.fromEntity(
+                userRepository.findById(userId)
+                        .orElseThrow(() -> new RuntimeException("User not found"))
+        );
+    }
+
+    // ── Profile update (name / phone / city / state / avatar) ─────────────────
+    @Transactional
+    public UserDto updateProfile(Long userId, UpdateProfileRequest req) {
+        User u = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (req.getName()      != null && !req.getName().isBlank())
+            u.setName(req.getName().trim());
+        if (req.getPhone()     != null && !req.getPhone().isBlank())
+            u.setPhone(req.getPhone().replaceAll("\\D", ""));
+        if (req.getCity()      != null && !req.getCity().isBlank())
+            u.setCity(req.getCity());
+        if (req.getState()     != null)
+            u.setState(req.getState());
+        if (req.getAvatarUrl() != null)
+            u.setAvatarUrl(req.getAvatarUrl());
+
+        // FIX: Password change — verify current password then set new one
+        if (req.getNewPassword() != null && !req.getNewPassword().isBlank()) {
+            if (req.getCurrentPassword() == null || req.getCurrentPassword().isBlank()) {
+                throw new RuntimeException("Current password is required to change password");
+            }
+            if (!encoder.matches(req.getCurrentPassword(), u.getPassword())) {
+                throw new RuntimeException("Current password is incorrect");
+            }
+            if (req.getNewPassword().length() < 6) {
+                throw new RuntimeException("New password must be at least 6 characters");
+            }
+            u.setPassword(encoder.encode(req.getNewPassword()));
+        }
+
+        return UserDto.fromEntity(userRepository.save(u));
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.entity.Category;
+import com.tradenest.api.repository.CategoryRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class CategoryService {
+
+    private final CategoryRepository repo;
+
+    public CategoryService(CategoryRepository repo) {
+        this.repo = repo;
+    }
+
+    public List<Category> getAll() {
+        return repo.findAll();
+    }
+
+    public Category getBySlug(String slug) {
+        return repo.findBySlug(slug)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+    }
+
+}package com.tradenest.api.service;
+
+import com.tradenest.api.entity.City;
+import com.tradenest.api.repository.CityRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class CityService {
+
+    private final CityRepository repo;
+
+    public CityService(CityRepository repo) {
+        this.repo = repo;
+    }
+
+    public List<City> getAll() {
+        return repo.findAll();
+    }
+
+    public List<City> getByState(String state) {
+        return repo.findByState(state);
+    }
+
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.DashboardDto;
+import com.tradenest.api.entity.Review;
+import com.tradenest.api.enums.ProductStatus;
+import com.tradenest.api.repository.*;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class DashboardService {
+
+    private final ProductRepository  productRepository;
+    private final OfferRepository    offerRepository;
+    private final WishlistRepository wishlistRepository;
+    private final ReviewRepository   reviewRepository;
+
+    public DashboardService(ProductRepository productRepository,
+                            OfferRepository offerRepository,
+                            WishlistRepository wishlistRepository,
+                            ReviewRepository reviewRepository) {
+        this.productRepository  = productRepository;
+        this.offerRepository    = offerRepository;
+        this.wishlistRepository = wishlistRepository;
+        this.reviewRepository   = reviewRepository;
+    }
+
+    public DashboardDto getSellerDashboard(Long sellerId) {
+
+        // FIX: was loading ALL products just to call .size()
+        // Use a count query in the repository instead (see ProductRepository fix)
+        int totalProducts = productRepository.countBySellerId(sellerId);
+
+        int totalOffers   = offerRepository.countByProductSellerId(sellerId);
+        int totalWishlist = wishlistRepository.countByProductSellerId(sellerId);
+
+        List<Review> reviews = reviewRepository.findBySellerIdOrderByCreatedAtDesc(sellerId);
+        int totalReviews = reviews.size();
+
+        double avgRating = reviews.stream()
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0);
+
+        avgRating = Math.round(avgRating * 10) / 10.0;
+
+        return new DashboardDto(
+                totalProducts,
+                totalOffers,
+                totalWishlist,
+                totalReviews,
+                avgRating
+        );
+    }
+}package com.tradenest.api.service;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.UUID;
+
+@Service
+public class FileService {
+
+    @Value("${app.upload.dir}")
+    private String uploadDir;
+
+    private static final long MAX_SIZE = 15 * 1024 * 1024; // 5MB
+
+    public String upload(MultipartFile file) throws IOException {
+
+        if (file.isEmpty()) {
+            throw new RuntimeException("File is empty");
+        }
+
+        if (file.getSize() > MAX_SIZE) {
+            throw new RuntimeException("File too large (max 5MB)");
+        }
+
+        String type = file.getContentType();
+
+        if (type == null || !type.startsWith("image/")) {
+            throw new RuntimeException("Only image files allowed");
+        }
+
+        Path dir = Path.of(uploadDir).toAbsolutePath().normalize();
+
+        if (!Files.exists(dir)) {
+            Files.createDirectories(dir);
+        }
+
+        String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
+
+        Path target = dir.resolve(filename);
+
+        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+
+        return filename;
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.*;
+import com.tradenest.api.entity.*;
+import com.tradenest.api.repository.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class MessageService {
+
+    private final ConversationRepository conversationRepository;
+    private final MessageRepository messageRepository;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+
+    public MessageService(ConversationRepository conversationRepository,
+                          MessageRepository messageRepository,
+                          ProductRepository productRepository,
+                          UserRepository userRepository) {
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
+        this.productRepository = productRepository;
+        this.userRepository = userRepository;
+    }
+
+    // ✅ Get all conversations of logged user
+    public List<ConversationDto> getUserConversations(Long userId) {
+
+        return conversationRepository
+                .findByBuyerIdOrSellerIdOrderByLastMessageAtDesc(userId, userId)
+                .stream()
+                .map(ConversationDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ✅ Get messages of conversation
+    public List<MessageDto> getMessages(Long conversationId, Long userId) {
+
+        Conversation conv = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+
+        validateParticipant(conv, userId);
+
+        return messageRepository.findByConversationIdOrderBySentAtAsc(conversationId)
+                .stream()
+                .map(MessageDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ✅ Start conversation (OLX style)
+    @Transactional
+    public ConversationDto startConversation(Long buyerId,
+                                             Long productId,
+                                             Long sellerId,
+                                             String message) {
+
+        if (buyerId.equals(sellerId)) {
+            throw new RuntimeException("Cannot start conversation with yourself");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        User buyer = userRepository.findById(buyerId).orElseThrow();
+        User seller = userRepository.findById(sellerId).orElseThrow();
+
+        // ✅ Prevent duplicate conversation
+        Conversation conv = conversationRepository
+                .findByBuyerIdAndSellerIdAndProductId(buyerId, sellerId, productId)
+                .orElse(null);
+
+        if (conv == null) {
+            conv = new Conversation();
+            conv.setBuyer(buyer);
+            conv.setSeller(seller);
+            conv.setProduct(product);
+            conv.setBuyerUnread(0);
+            conv.setSellerUnread(1);
+        }
+
+        conv.setLastMessage(message);
+        conv.setLastMessageAt(LocalDateTime.now());
+
+        conv = conversationRepository.save(conv);
+
+        Message msg = new Message();
+        msg.setConversation(conv);
+        msg.setSender(buyer);
+        msg.setContent(message);
+        msg.setRead(false);
+
+        messageRepository.save(msg);
+
+        return ConversationDto.fromEntity(conv);
+    }
+
+    // ✅ Send message
+    @Transactional
+    public MessageDto sendMessage(Long conversationId,
+                                  Long senderId,
+                                  String content) {
+
+        Conversation conv = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+
+        validateParticipant(conv, senderId);
+
+        User sender = userRepository.findById(senderId).orElseThrow();
+
+        Message msg = new Message();
+        msg.setConversation(conv);
+        msg.setSender(sender);
+        msg.setContent(content);
+        msg.setRead(false);
+
+        msg = messageRepository.save(msg);
+
+        conv.setLastMessage(content);
+        conv.setLastMessageAt(LocalDateTime.now());
+
+        if (senderId.equals(conv.getBuyer().getId())) {
+            conv.setSellerUnread(conv.getSellerUnread() + 1);
+        } else {
+            conv.setBuyerUnread(conv.getBuyerUnread() + 1);
+        }
+
+        conversationRepository.save(conv);
+
+        return MessageDto.fromEntity(msg);
+    }
+
+    // ✅ Mark as read
+    @Transactional
+    public void markAsRead(Long conversationId, Long userId) {
+
+        Conversation conv = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new RuntimeException("Conversation not found"));
+
+        validateParticipant(conv, userId);
+
+        if (userId.equals(conv.getBuyer().getId())) {
+            conv.setBuyerUnread(0);
+        } else {
+            conv.setSellerUnread(0);
+        }
+
+        conversationRepository.save(conv);
+    }
+
+    // 🔐 SECURITY VALIDATION
+    private void validateParticipant(Conversation conv, Long userId) {
+
+        if (!userId.equals(conv.getBuyer().getId())
+                && !userId.equals(conv.getSeller().getId())) {
+            throw new RuntimeException("Unauthorized access to conversation");
+        }
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.NotificationDto;
+import com.tradenest.api.entity.Notification;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.enums.NotificationType;
+import com.tradenest.api.repository.NotificationRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class NotificationService {
+
+    private final NotificationRepository repo;
+
+    public NotificationService(NotificationRepository repo) {
+        this.repo = repo;
+    }
+
+    public List<NotificationDto> getForUser(Long userId) {
+        return repo.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(NotificationDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    public int getUnreadCount(Long userId) {
+        return repo.countByUserIdAndReadFalse(userId);
+    }
+
+    @Transactional
+    public void markAllRead(Long userId) {
+        List<Notification> unread = repo.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .filter(n -> !n.isRead())
+                .collect(Collectors.toList());
+        unread.forEach(n -> n.setRead(true));
+        repo.saveAll(unread);
+    }
+
+    @Transactional
+    public void markOneRead(Long notificationId, Long userId) {
+        repo.findById(notificationId).ifPresent(n -> {
+            if (n.getUser().getId().equals(userId)) {
+                n.setRead(true);
+                repo.save(n);
+            }
+        });
+    }
+
+    // ── Helper called by other services to push notifications ────────────────
+
+    @Transactional
+    public void push(User user, String title, String message,
+                     NotificationType type, Long referenceId) {
+        Notification n = new Notification();
+        n.setUser(user);
+        n.setTitle(title);
+        n.setMessage(message);
+        n.setType(type);
+        n.setReferenceId(referenceId);
+        repo.save(n);
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.OfferDto;
+import com.tradenest.api.entity.*;
+import com.tradenest.api.enums.OfferStatus;
+import com.tradenest.api.repository.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class OfferService {
+
+    private final OfferRepository offerRepository;
+    private final ProductRepository productRepository;
+
+    public OfferService(OfferRepository offerRepository,
+                        ProductRepository productRepository) {
+        this.offerRepository = offerRepository;
+        this.productRepository = productRepository;
+    }
+
+    @Transactional
+    public OfferDto makeOffer(User buyer, Long productId,
+                              BigDecimal amount, String message) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        if (product.getSeller().getId().equals(buyer.getId())) {
+            throw new RuntimeException("Cannot offer on your own product");
+        }
+
+        Offer offer = new Offer();
+        offer.setBuyer(buyer);
+        offer.setProduct(product);
+        offer.setAmount(amount);
+        offer.setMessage(message);
+
+        return OfferDto.fromEntity(offerRepository.save(offer));
+    }
+
+    public List<OfferDto> getMyOffers(Long userId) {
+        return offerRepository.findByBuyerIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(OfferDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    public List<OfferDto> getReceivedOffers(Long userId) {
+        return offerRepository.findByProductSellerIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(OfferDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public OfferDto accept(Long offerId, Long sellerId) {
+
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+
+        validateSeller(offer, sellerId);
+
+        offer.setStatus(OfferStatus.ACCEPTED);
+
+        return OfferDto.fromEntity(offerRepository.save(offer));
+    }
+
+    @Transactional
+    public OfferDto reject(Long offerId, Long sellerId) {
+
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+
+        validateSeller(offer, sellerId);
+
+        offer.setStatus(OfferStatus.REJECTED);
+
+        return OfferDto.fromEntity(offerRepository.save(offer));
+    }
+
+    @Transactional
+    public OfferDto counter(Long offerId, Long sellerId, BigDecimal amount) {
+
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new RuntimeException("Offer not found"));
+
+        validateSeller(offer, sellerId);
+
+        offer.setStatus(OfferStatus.COUNTERED);
+        offer.setCounterAmount(amount);
+
+        return OfferDto.fromEntity(offerRepository.save(offer));
+    }
+
+    private void validateSeller(Offer offer, Long sellerId) {
+        if (!offer.getProduct().getSeller().getId().equals(sellerId)) {
+            throw new RuntimeException("Unauthorized action");
+        }
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.CreateProductRequest;
+import com.tradenest.api.dto.PagedResponse;
+import com.tradenest.api.dto.ProductDto;
+import com.tradenest.api.entity.Category;
+import com.tradenest.api.entity.Product;
+import com.tradenest.api.entity.User;
+import com.tradenest.api.enums.ProductStatus;
+import com.tradenest.api.repository.CategoryRepository;
+import com.tradenest.api.repository.ProductRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class ProductService {
+
+    private final ProductRepository  repo;
+    private final CategoryRepository categoryRepo;
+
+    public ProductService(ProductRepository repo, CategoryRepository categoryRepo) {
+        this.repo         = repo;
+        this.categoryRepo = categoryRepo;
+    }
+
+    // ── Existing: un-paginated list (kept for backward compat) ───────────────
+    @Transactional(readOnly = true)
+    public List<ProductDto> getAll() {
+        return repo.findByStatus(ProductStatus.ACTIVE)
+                .stream()
+                .map(ProductDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // ── Paginated all-active ──────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public PagedResponse<ProductDto> getAllPaged(int page, int size) {
+        Pageable pg = PageRequest.of(page, size, Sort.by("postedDate").descending());
+        Page<ProductDto> result = repo.findByStatusPageable(ProductStatus.ACTIVE, pg)
+                .map(ProductDto::fromEntity);
+        return PagedResponse.of(result);
+    }
+
+    // ── Backend search ────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public PagedResponse<ProductDto> search(String q,
+                                            String city,
+                                            String categorySlug,
+                                            BigDecimal minPrice,
+                                            BigDecimal maxPrice,
+                                            int page,
+                                            int size) {
+
+        String likeQ     = (q != null && !q.isBlank())
+                ? "%" + q.toLowerCase().trim() + "%" : null;
+        String cityParam = (city != null && !city.isBlank())
+                ? city.toLowerCase().trim() : null;
+        String slugParam = (categorySlug != null && !categorySlug.isBlank())
+                ? categorySlug.trim() : null;
+
+        Pageable pg = PageRequest.of(page, size, Sort.by("postedDate").descending());
+        Page<ProductDto> result = repo.search(
+                likeQ, cityParam, slugParam, minPrice, maxPrice,
+                ProductStatus.ACTIVE, pg
+        ).map(ProductDto::fromEntity);
+
+        return PagedResponse.of(result);
+    }
+
+    // ── Products by category slug (paginated) ─────────────────────────────────
+    @Transactional(readOnly = true)
+    public PagedResponse<ProductDto> getByCategory(String slug, int page, int size) {
+        Pageable pg = PageRequest.of(page, size, Sort.by("postedDate").descending());
+        Page<ProductDto> result = repo.findByCategorySlugAndStatusPageable(
+                slug, ProductStatus.ACTIVE, pg
+        ).map(ProductDto::fromEntity);
+        return PagedResponse.of(result);
+    }
+
+    @Transactional
+    public ProductDto getById(Long id) {
+        Product p = repo.findByIdWithDetails(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        p.setViewCount(p.getViewCount() + 1);
+        return ProductDto.fromEntity(repo.save(p));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductDto> getFeaturedProducts() {
+        return repo.findByFeaturedTrueAndStatus(ProductStatus.ACTIVE)
+                .stream()
+                .map(ProductDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductDto> getBySeller(Long sellerId) {
+        return repo.findBySellerId(sellerId)
+                .stream()
+                .map(ProductDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // FIX: Accept DTO instead of raw entity — resolves category from ID safely
+    @Transactional
+    public ProductDto create(CreateProductRequest req, User seller) {
+        Category category = resolveCategory(req.getCategory());
+
+        Product p = new Product();
+        p.setSeller(seller);
+        p.setTitle(req.getTitle());
+        p.setDescription(req.getDescription());
+        p.setPrice(req.getPrice());
+        p.setCity(req.getCity());
+        p.setState(req.getState());
+        p.setImages(req.getImages() != null ? req.getImages() : "sample.jpg");
+        p.setFeatured(req.isFeatured());
+        p.setCondition(req.getCondition());   // FIX: was never set from DTO before
+        p.setCategory(category);
+        p.setStatus(ProductStatus.ACTIVE);
+
+        Product saved = repo.save(p);
+        return ProductDto.fromEntity(
+                repo.findByIdWithDetails(saved.getId()).orElse(saved)
+        );
+    }
+
+    // FIX: Accept DTO instead of raw entity + fix: condition is now updated
+    @Transactional
+    public ProductDto update(Long id, Long sellerId, CreateProductRequest req) {
+        Product existing = repo.findByIdWithDetails(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        if (!existing.getSeller().getId().equals(sellerId))
+            throw new RuntimeException("Unauthorized");
+
+        if (req.getTitle()       != null) existing.setTitle(req.getTitle());
+        if (req.getDescription() != null) existing.setDescription(req.getDescription());
+        if (req.getPrice()       != null) existing.setPrice(req.getPrice());
+        if (req.getCity()        != null) existing.setCity(req.getCity());
+        if (req.getState()       != null) existing.setState(req.getState());
+        if (req.getImages()      != null) existing.setImages(req.getImages());
+        if (req.getCondition()   != null) existing.setCondition(req.getCondition()); // FIX
+        existing.setFeatured(req.isFeatured());
+
+        if (req.getCategory() != null && req.getCategory().getId() != null) {
+            existing.setCategory(resolveCategory(req.getCategory()));
+        }
+
+        return ProductDto.fromEntity(repo.save(existing));
+    }
+
+    // ── Mark as sold ──────────────────────────────────────────────────────────
+    @Transactional
+    public ProductDto markAsSold(Long id, Long sellerId) {
+        Product existing = repo.findByIdWithDetails(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        if (!existing.getSeller().getId().equals(sellerId))
+            throw new RuntimeException("Unauthorized");
+
+        existing.setStatus(ProductStatus.SOLD);
+        return ProductDto.fromEntity(repo.save(existing));
+    }
+
+    // Soft-delete (EXPIRED)
+    @Transactional
+    public void delete(Long id, Long sellerId) {
+        Product existing = repo.findByIdWithDetails(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        if (!existing.getSeller().getId().equals(sellerId))
+            throw new RuntimeException("Unauthorized");
+
+        existing.setStatus(ProductStatus.EXPIRED);
+        repo.save(existing);
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────────
+    private Category resolveCategory(CreateProductRequest.CategoryRef ref) {
+        if (ref == null || ref.getId() == null)
+            throw new RuntimeException("Category is required");
+        return categoryRepo.findById(ref.getId())
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.*;
+import com.tradenest.api.entity.*;
+import com.tradenest.api.repository.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class ReviewService {
+
+    private final ReviewRepository reviewRepository;
+    private final UserRepository userRepository;
+
+    public ReviewService(ReviewRepository reviewRepository,
+                         UserRepository userRepository) {
+        this.reviewRepository = reviewRepository;
+        this.userRepository = userRepository;
+    }
+
+    public List<ReviewDto> getSellerReviews(Long sellerId) {
+        return reviewRepository.findBySellerIdOrderByCreatedAtDesc(sellerId)
+                .stream()
+                .map(ReviewDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public ReviewDto createReview(User reviewer,
+                                  Long sellerId,
+                                  int rating,
+                                  String comment) {
+
+        if (reviewer.getId().equals(sellerId)) {
+            throw new RuntimeException("Cannot review yourself");
+        }
+
+        if (reviewRepository.findByReviewerIdAndSellerId(reviewer.getId(), sellerId).isPresent()) {
+            throw new RuntimeException("Already reviewed this seller");
+        }
+
+        User seller = userRepository.findById(sellerId)
+                .orElseThrow(() -> new RuntimeException("Seller not found"));
+
+        Review r = new Review();
+        r.setReviewer(reviewer);
+        r.setSeller(seller);
+        r.setRating(rating);
+        r.setComment(comment);
+
+        return ReviewDto.fromEntity(reviewRepository.save(r));
+    }
+
+    public ReviewStatsDto getSellerStats(Long sellerId) {
+
+        List<Review> reviews = reviewRepository.findBySellerIdOrderByCreatedAtDesc(sellerId);
+
+        if (reviews.isEmpty()) {
+            return new ReviewStatsDto(0, 0, Map.of());
+        }
+
+        double avg = reviews.stream().mapToInt(Review::getRating).average().orElse(0);
+
+        Map<Integer, Integer> dist = new HashMap<>();
+        for (int i = 1; i <= 5; i++) {
+            int rating = i;
+            dist.put(i, (int) reviews.stream().filter(r -> r.getRating() == rating).count());
+        }
+
+        return new ReviewStatsDto(Math.round(avg * 10) / 10.0,
+                reviews.size(),
+                dist);
+    }
+}package com.tradenest.api.service;
+
+import com.tradenest.api.dto.WishlistDto;
+import com.tradenest.api.entity.*;
+import com.tradenest.api.repository.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class WishlistService {
+
+    private final WishlistRepository wishlistRepository;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+
+    public WishlistService(WishlistRepository wishlistRepository,
+                           ProductRepository productRepository,
+                           UserRepository userRepository) {
+        this.wishlistRepository = wishlistRepository;
+        this.productRepository = productRepository;
+        this.userRepository = userRepository;
+    }
+
+    public List<WishlistDto> getWishlist(Long userId) {
+
+        return wishlistRepository.findByUserId(userId)
+                .stream()
+                .map(WishlistDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void addToWishlist(Long userId, Long productId) {
+
+        if (wishlistRepository.existsByUserIdAndProductId(userId, productId)) {
+            return;
+        }
+
+        User user = userRepository.findById(userId).orElseThrow();
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        Wishlist w = new Wishlist();
+        w.setUser(user);
+        w.setProduct(product);
+
+        wishlistRepository.save(w);
+    }
+
+    @Transactional
+    public void removeFromWishlist(Long userId, Long productId) {
+        wishlistRepository.deleteByUserIdAndProductId(userId, productId);
+    }
+
+    public boolean isWishlisted(Long userId, Long productId) {
+        return wishlistRepository.existsByUserIdAndProductId(userId, productId);
+    }
+}package com.tradenest.api.util;
+
+public class ApiResponse<T> {
+
+    private boolean success;
+    private T data;
+    private String message;
+
+    public ApiResponse(boolean success, T data, String message) {
+        this.success = success;
+        this.data = data;
+        this.message = message;
+    }
+
+    public static <T> ApiResponse<T> ok(T data) {
+        return new ApiResponse<>(true, data, null);
+    }
+
+    public static <T> ApiResponse<T> ok(T data, String msg) {
+        return new ApiResponse<>(true, data, msg);
+    }
+
+    public static <T> ApiResponse<T> error(String msg) {
+        return new ApiResponse<>(false, null, msg);
+    }
+
+    public boolean isSuccess() { return success; }
+    public T getData() { return data; }
+    public String getMessage() { return message; }
+}package com.tradenest.api.util;
+
+import com.tradenest.api.entity.*;
+import com.tradenest.api.enums.ProductStatus;
+import com.tradenest.api.repository.*;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Component
+public class DataInitializer implements CommandLineRunner {
+
+    private final CategoryRepository categoryRepository;
+    private final UserRepository userRepository;
+    private final ProductRepository productRepository;
+    private final CityRepository cityRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public DataInitializer(CategoryRepository categoryRepository,
+                           UserRepository userRepository,
+                           ProductRepository productRepository,
+                           CityRepository cityRepository,
+                           PasswordEncoder passwordEncoder) {
+        this.categoryRepository = categoryRepository;
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.cityRepository = cityRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    @Override
+    public void run(String... args) {
+
+        if (categoryRepository.count() > 0) return;
+
+        // ========================= CATEGORIES =========================
+        Category cars = createCategory("Cars","cars","🚗","Cars marketplace");
+        Category bikes = createCategory("Motorcycles","motorcycles","🏍️","Bikes marketplace");
+        Category phones = createCategory("Mobile Phones","phones","📱","Smartphones");
+        Category electronics = createCategory("Electronics","electronics","💻","Electronics");
+        Category furniture = createCategory("Furniture","furniture","🪑","Furniture");
+        Category fashion = createCategory("Fashion","fashion","👕","Clothing");
+        Category books = createCategory("Books","books","📚","Books");
+        Category realEstate = createCategory("Real Estate","real-estate","🏠","Property");
+        Category laptops = createCategory("Laptops","laptops","💻","Laptops");
+        Category pets = createCategory("Pets","pets","🐶","Pets");
+        Category sports = createCategory("Sports","sports","⚽","Sports");
+        Category services = createCategory("Services","services","🛠️","Services");
+
+        categoryRepository.saveAll(List.of(
+                cars,bikes,phones,electronics,furniture,
+                fashion,books,realEstate,laptops,pets,sports,services
+        ));
+
+        // ========================= CITIES =========================
+        cityRepository.saveAll(List.of(
+                c("Mumbai","Maharashtra",19.076,72.8777),
+                c("Delhi","Delhi",28.7041,77.1025),
+                c("Bangalore","Karnataka",12.9716,77.5946),
+                c("Hyderabad","Telangana",17.385,78.4867)
+        ));
+
+        // ========================= USERS =========================
+        User seller1 = u("Rahul Sharma","seller1@tn.com","Bangalore","Karnataka","9999999991");
+        User seller2 = u("Amit Verma","seller2@tn.com","Mumbai","Maharashtra","9999999992");
+        User seller3 = u("Kiran Kumar","seller3@tn.com","Hyderabad","Telangana","9999999993");
+
+        userRepository.saveAll(List.of(seller1,seller2,seller3));
+
+        // ========================= PRODUCTS =========================
+        productRepository.saveAll(List.of(
+                p("Honda City 2022","Single owner","850000","Mumbai","Maharashtra",cars,seller2,true),
+                p("Yamaha R15","Like new","145000","Bangalore","Karnataka",bikes,seller1,true),
+                p("iPhone 15 Pro","Brand new","130000","Hyderabad","Telangana",phones,seller3,true)
+        ));
+
+        System.out.println("✅ TradeNest Seed Data Loaded");
+    }
+
+    private Category createCategory(String n,String s,String i,String d){
+        Category c=new Category();
+        c.setName(n);
+        c.setSlug(s);
+        c.setIcon(i);
+        c.setDescription(d);
+        return c;
+    }
+
+    private City c(String city,String state,double lat,double lng){
+        City x=new City();
+        x.setCity(city);
+        x.setState(state);
+        x.setLat(lat);
+        x.setLng(lng);
+        return x;
+    }
+
+    private User u(String n,String e,String c,String s,String p){
+        User x=new User();
+        x.setName(n);
+        x.setEmail(e);
+        x.setPassword(passwordEncoder.encode("password123"));
+        x.setCity(c);
+        x.setState(s);
+        x.setPhone(p);
+        x.setVerified(true);
+        return x;
+    }
+
+    private Product p(String t,String d,String price,String c,String s,Category cat,User seller,boolean f){
+        Product x=new Product();
+        x.setTitle(t);
+        x.setDescription(d);
+        x.setPrice(new BigDecimal(price));
+        x.setCity(c);
+        x.setState(s);
+        x.setCategory(cat);
+        x.setSeller(seller);
+        x.setFeatured(f);
+        x.setStatus(ProductStatus.ACTIVE);
+        x.setImages("sample.jpg");
+        x.setViewCount(0);
+        return x;
+    }
+}package com.tradenest.api;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class TradenestApiApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
